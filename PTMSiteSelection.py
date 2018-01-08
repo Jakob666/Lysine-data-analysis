@@ -227,16 +227,19 @@ class Mutation_Sites:
                 pos_and_sample = pos_and_sample.split(';')
                 for j in pos_and_sample:
                     pos = j.split('-')[0]
-                    sample_num = str(len(j.split(',')))
-                    try:
-                        mut = pos[1:-1]
-                        f = pos[0]
-                        t = pos[-1]
-                        result = [res[0][0],res[0][1],mut,f,t,sample_num]
-                        result = "\t".join(result)
-                        data.append(result)
-                    except:
-                        print(j)
+                    p = re.compile("\[(.*?)\]", re.S)
+                    samples = re.findall(p, j)[0]
+                    samples = samples[1:-1].split(',')
+                    for s in samples:
+                        try:
+                            mut = pos[1:-1]
+                            f = pos[0]
+                            t = pos[-1]
+                            result = [res[0][0],res[0][1],mut,f,t,s]
+                            result = "\t".join(result)
+                            data.append(result)
+                        except:
+                            print(j)
             data = ';'.join(data)
         else:
             data = ''
