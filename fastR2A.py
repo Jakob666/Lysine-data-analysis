@@ -8,9 +8,7 @@ class FastR2A:
         self.fastr_dir = fastr_dir
 
     def load_data(self, f):
-        data = pd.read_csv(f, sep='\t', usecols=[0, 1, 2, 4])
-        data.columns = ["PLMD ID","Uniprot Accession","Position","Sequence"]
-        data["Position"] = data["Position"].map(str)
+        data = pd.read_csv(f, sep='\t', encoding="utf-8")
         return data
 
     def formFastr(self):
@@ -19,8 +17,8 @@ class FastR2A:
             outputFile = f.split(".")[0]
             f = self.fastr_dir + '/' + f
             data = self.load_data(f)
-            data["fasta"] = ">" + data["PLMD ID"] + "@" + data["Uniprot Accession"] + "@" + data["Position"] + "\n" \
-                            + data["Sequence"]
+            data["fasta"] = ">" + data["protein_id"] + "@" + data["Uniprot Accession"] + "@" + data["mod_type"] + "@" + data["Species"] +"@" + data["position"] + "\n" \
+                            + data["sequence"]
             data = data["fasta"]
             outputFile = "/data1/hbs/total_fasta/" + outputFile + ".fasta"
             data.to_csv(outputFile, sep="\t", index=False, mode="w", encoding="utf-8")
