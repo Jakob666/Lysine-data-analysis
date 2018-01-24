@@ -10,8 +10,16 @@ Description:
 ==========================
 @update: 对最终的显著性检验的方式进行优化
 @version: 1.1
+==========================
+@update: 纠正了其中一处语法错误
+@version: 1.2
+==========================
+@update: 加了更详尽的注释，因为实际项目中出现易混淆点
+@version: 1.3
+==========================
+@update: 对bootstrap的均值、方差的计算做了较大程度上的变化
+@version: 2.0
 '''
-import pandas as pd
 import numpy as np
 # from matplotlib import pyplot as plt
 import os
@@ -21,69 +29,97 @@ import warnings
 
 class Boostrap_test:
 
-    def __init__(self, Confidence=0.95, time=1000):
+    def __init__(self, Confidence=0.95, time=1000, side="two-side"):
         '''
         :param Confidence: 置信区间
         :param time: boostrap抽样的次数
+        :param side: 默认是two-side的双尾检验，如果是单尾检验则为"one-side"
         '''
         self.conf = Confidence
         self.times = time
+        self.side = side
         self.t_val_list = []
+        #经过self.time次抽样随机抽取到的样本，也就是模拟得到的总体
+        self.x_total_samples = np.array([])
+        self.y_total_samples = np.array([])
 
     def preprocess(self, x_data, y_data):
-        '''求出x、y样本的合并均值z，将x、y样本的值进行相应的替换：
-            xi'= xi - x_mean + z
-            yi'= yi - y_mean + z
+        '''
+        求取x、y两组观测值的 t'值
         :param x_data: 参数类型是列表，由样本组一的样本值组成
         :param y_data: 参数类型是列表，由样本组二的样本值组成
         '''
-        conbimed = x_data + y_data
-        z = np.mean(conbimed)
+        #未经处理的x样本组数据均值
         x_mean = np.mean(x_data)
         x_std = np.std(x_data)
+        #未经处理的y样本组数据均值
         y_mean = np.mean(y_data)
         y_std = np.std(y_data)
         #计算 observed数据的t值
-        t_obs = Boostrap_test.calc_t_val(x_mean, y_mean, len(x_data), len(y_data), x_std, y_std)
+        t_obs = Boostrap_test.calc_t_val(x_mean, y_mean, len(x_data), len(y_data), x_std, y_std, self.side)
+        # print(t_obs)
+        return t_obs
 
-        x_data = list(map(lambda i: i - x_mean + z, x_data))
-        y_data = list(map(lambda i: i - y_mean + z, y_data))
-
-        return x_data, y_data, t_obs, x_mean, y_mean
-
-    def boostrap(self, x_data, y_data, t_obs):
+    def bootstrap(self, x_data, y_data, t_obs):
         '''
-        模拟boostrap抽样，每次抽样 size个样本
+        模拟boostrap抽样，每次抽样 size个样本（有放回抽样）
+        求出x、y样本抽样后形成的新的样本的合并均值z，将x、y新样本的值进行相应的替换：
+            xi'= xi - x_mean + z
+            yi'= yi - y_mean + z
         :param x_data: 参数类型是列表，由样本组一的样本值组成
         :param y_data: 参数类型是列表，由样本组二的样本值组成
         :param t_obs: 是一个数值，是preprocess方法中计算出来的两个样本组原始值的 t检验值
         :return:
         '''
+        # z是两组样本中抽取数据共同的均值
+        conbimed = x_data + y_data
+        z = np.mean(conbimed)
+        x_mean = np.mean(x_data)
+        y_mean = np.mean(y_data)
+
         x_size = len(x_data)
         y_size = len(y_data)
         for t in range(self.times):
             x_samples = np.random.choice(x_data, x_size)  #choice方法可以模拟又放回的抽取，size的值可以大于len(data)
             y_samples = np.random.choice(y_data, y_size)
 
+            self.x_total_samples = np.append(self.x_total_samples, x_samples)
+            self.y_total_samples = np.append(self.y_total_samples, y_samples)
+            # x样本组抽取的样本数据预处理
+            # x_samples = list(map(lambda i: i - x_mean + z, x_samples))
+            x_samples = x_samples - x_mean + z
             x_samples_mean = np.mean(x_samples)
-            x_samples_std = np.std(x_samples)
+            # y样本组抽取的样本数据预处理
+            # y_samples  = list(map(lambda i: i - y_mean + z, y_samples))
+            y_samples = y_samples - y_mean + z
             y_samples_mean = np.mean(y_samples)
+            x_samples_std = np.std(x_samples)
             y_samples_std = np.std(y_samples)
 
-            t_val = Boostrap_test.calc_t_val(x_samples_mean, y_samples_mean, x_size, y_size, x_samples_std, y_samples_std)
+            t_val = Boostrap_test.calc_t_val(x_samples_mean, y_samples_mean, x_size, y_size, x_samples_std, y_samples_std, self.side)
             self.t_val_list.append(t_val)
+        # print(self.t_val_list)
         p_val = self.calc_p_val(t_obs, self.t_val_list)
 
-        p_ref = 1.0 - self.conf
+        #定义双尾检验时 p为 α/2；单尾检验时 p为α
+        if self.side == "one-side":
+            p_ref = 1 - self.conf
+        elif self.side == "two-side":
+            p_ref = (1 - self.conf)/2
         if p_val < p_ref:
             res = "Significant difference"
         else:
             res = "Insignificant difference"
+        #求取x和y样本组经过self.time次抽取后形成的总体的均值和标准差
+        x_total_mean = np.mean(self.x_total_samples)
+        x_total_std = np.std(self.x_total_samples)
+        y_total_mean = np.mean(self.y_total_samples)
+        y_total_std = np.std(self.y_total_samples)
 
-        return res, p_val, p_ref
+        return res, p_val, p_ref, x_total_mean, y_total_mean, x_total_std, y_total_std
 
     @staticmethod
-    def calc_t_val(x_mean, y_mean, x_size, y_size, x_std, y_std):
+    def calc_t_val(x_mean, y_mean, x_size, y_size, x_std, y_std, side):
         '''计算 bootstrap抽样样本的 t值，此处两组样本的t值使用的是不具备方差齐性时的 t'检验公式
         :param x_mean: 经过预处理后样本组一的均值
         :param y_mean: 经过预处理后样本组二的均值
@@ -92,7 +128,13 @@ class Boostrap_test:
         :param x_std: 经过预处理后样本组一的标准差
         :param y_std: 经过预处理后样本组二的标准差
         '''
-        numerator = np.abs(x_mean - y_mean)
+        if side == "one-side":
+            numerator = x_mean - y_mean
+        elif side == "two-side":
+            numerator = np.abs(x_mean - y_mean)
+        else:
+            print("invalid input")
+            exit()
         denominator = np.sqrt(np.square(x_std)/x_size + np.square(y_std)/y_size)
         t_val = numerator/denominator
         return t_val
@@ -104,9 +146,9 @@ class Boostrap_test:
         '''
         count = 0.0
         for t in range(self.times):
-            if t_obs < t_boot_list[t]:
+            if t_obs > t_boot_list[t]:
                 count += 1.0
-        p_val = count/self.times
+        p_val = count/self.times  #self.time次中有 count次拒绝H0后发生第一类错误的概率小于α
         return p_val
 
     def main(self, x_data, y_data):
@@ -116,138 +158,12 @@ class Boostrap_test:
         :return res是最终的检验结果 "Significant difference"或是"Insignificant difference"；
                 p_val是发生第一类错误的概率； p_ref是α值，即 1-self.conf；
                 x_mean是样本组x的均值； y_mean是样本组y的均值；
+                x_std是样本组x的标准差；y_std是样本组y的标准差。
         '''
-        x_data, y_data, t_obs, x_mean, y_mean = self.preprocess(x_data, y_data)
-        res, p_val, p_ref = self.boostrap(x_data, y_data, t_obs)
-        return res, p_val, p_ref, x_mean, y_mean
+        t_obs = self.preprocess(x_data, y_data)
+        res, p_val, p_ref, x_mean, y_mean, x_std, y_std = self.bootstrap(x_data, y_data, t_obs)
+        return res, p_val, p_ref, x_mean, y_mean, x_std, y_std
 
-
-class Significant_difference_test:
-    def __init__(self):
-        self.mod_list = ["ace", "gly", "mal", "met", "suc", "sumo", "ubi"]
-        self.sig_dir = "/data1/hbs/centralOrNotSigIsyes/"
-        self.insig_dir = "/data1/hbs/centralOrNotSigNotyes/"
-        self.b = Boostrap_test()
-
-    def compare_in_motif(self):
-        f = open("/data1/hbs/UCEC_significant_difference/sig_insig_in_motif_comparison(bo).txt", "w")
-        content = ""
-        for mod in self.mod_list:
-            sig_central_mod_file = self.sig_dir + mod + "_in_motif_centralMut.txt"
-            sig_central_mod_data = Significant_difference_test.load_data(sig_central_mod_file)
-            sig_surround_mod_file = self.sig_dir + mod + "_in_motif_surroundMut.txt"
-            sig_surround_mod_data = Significant_difference_test.load_data(sig_surround_mod_file)
-            sig_in_motif = pd.concat([sig_central_mod_data, sig_surround_mod_data], axis=0)
-            sig_in_motif = pd.DataFrame(sig_in_motif.groupby(["protein_id"])["sample_count"].sum())
-            sig_data = sorted(list(sig_in_motif["sample_count"]))
-            # sig_data_size = len(sig_data)
-
-            insig_central_mod_file = self.insig_dir + mod + "_in_motif_centralMut.txt"
-            insig_central_mod_data = Significant_difference_test.load_data(insig_central_mod_file)
-            insig_surround_mod_file = self.insig_dir + mod + "_in_motif_surroundMut.txt"
-            insig_surround_mod_data = Significant_difference_test.load_data(insig_surround_mod_file)
-            insig_in_motif = pd.concat([insig_central_mod_data, insig_surround_mod_data], axis=0)
-            insig_in_motif = pd.DataFrame(insig_in_motif.groupby(["protein_id"])["sample_count"].sum())
-            insig_data = sorted(list(insig_in_motif["sample_count"]))
-            # insig_data_size = len(insig_data)
-
-            res, p_val, p_ref, sig_mean, insig_mean = self.b.main(sig_data, insig_data)
-            if res == "Significant difference":
-                content += "%s in %s modification counts in motif area, p value %s < %s\n"%(res, mod, p_val, p_ref)
-            else:
-                content += "%s in %s modification counts in motif area, p value %s > %s\n"%(res, mod, p_val, p_ref)
-            content += "average modification in significant proteins: %s\n"\
-                       "average modification in insignificant proteins: %s\n\n"%(sig_mean, insig_mean)
-        f.write(content)
-        f.close()
-
-    def compare_out_motif(self):
-        f = open("/data1/hbs/UCEC_significant_difference/sig_insig_out_motif_comparison(bo).txt", "w")
-        content = ""
-        for mod in self.mod_list:
-            sig_out_motif_file = self.sig_dir + mod + "_out_motifMut.txt"
-            insig_out_motif_file = self.insig_dir + mod + "_out_motifMut.txt"
-            sig_out_motif_data = Significant_difference_test.load_data(sig_out_motif_file)
-            insig_out_motif_data = Significant_difference_test.load_data(insig_out_motif_file)
-            sig_data = sorted(list(sig_out_motif_data["sample_count"]))
-            # sig_data_size = len(sig_data)
-            insig_data = sorted(list(insig_out_motif_data["sample_count"]))
-            # insig_data_size = len(insig_data)
-
-            res, p_val, p_ref, sig_mean, insig_mean = self.b.main(sig_data, insig_data)
-            if res == "Significant difference":
-                content += "%s in %s modification counts out of motif area, p value %s < %s\n"%(res, mod, p_val, p_ref)
-            else:
-                content += "%s in %s modification counts out of motif area, p value %s > %s\n"%(res, mod, p_val, p_ref)
-            content += "average modification in significant proteins: %s\n" \
-                       "average modification in insignificant proteins: %s\n\n"%(sig_mean, insig_mean)
-        f.write(content)
-        f.close()
-
-    def compare_in_motif_central(self):
-        f = open("/data1/hbs/UCEC_significant_difference/sig_insig_central_motif_comparison(bo).txt", "w")
-        content = ""
-        for mod in self.mod_list:
-            sig_central_motif_file = self.sig_dir + mod + "_in_motif_centralMut.txt"
-            insig_central_motif_file = self.insig_dir + mod + "_in_motif_centralMut.txt"
-            sig_central_motif_data = Significant_difference_test.load_data(sig_central_motif_file)
-            insig_central_motif_data = Significant_difference_test.load_data(insig_central_motif_file)
-            sig_data = sorted(list(sig_central_motif_data["sample_count"]))
-            # sig_data_size = len(sig_data)
-            insig_data = sorted(list(insig_central_motif_data["sample_count"]))
-            # insig_data_size = len(insig_data)
-
-            res, p_val, p_ref, sig_mean, insig_mean = self.b.main(sig_data, insig_data)
-            if res == "Significant difference":
-                content += "%s in %s modification counts in central of motif area, p value %s < %s\n"%(res, mod, p_val, p_ref)
-            else:
-                content += "%s in %s modification counts in central of motif area, p value %s > %s\n"%(res, mod, p_val, p_ref)
-            content += "average modification in significant proteins: %s\n" \
-                       "average modification in insignificant proteins: %s\n\n"%(sig_mean, insig_mean)
-        f.write(content)
-        f.close()
-
-    def compare_in_motif_surround(self):
-        f = open("/data1/hbs/UCEC_significant_difference/sig_insig_surround_motif_comparison(bo).txt", "w")
-        content = ""
-        for mod in self.mod_list:
-            sig_surround_motif_file = self.sig_dir + mod + "_in_motif_surroundMut.txt"
-            insig_surround_motif_file = self.insig_dir + mod + "_in_motif_surroundMut.txt"
-            sig_surround_motif_data = Significant_difference_test.load_data(sig_surround_motif_file)
-            insig_surround_motif_data = Significant_difference_test.load_data(insig_surround_motif_file)
-            sig_data = sorted(list(sig_surround_motif_data["sample_count"]))
-            # sig_data_size = len(sig_data)
-            insig_data = sorted(list(insig_surround_motif_data["sample_count"]))
-            # insig_data_size = len(insig_data)
-
-            res, p_val, p_ref, sig_mean, insig_mean = self.b.main(sig_data, insig_data)
-            if res == "Significant difference":
-                content += "%s in %s modification counts in motif flanking sequence area, p value %s < %s\n"%(res, mod, p_val, p_ref)
-            else:
-                content += "%s in %s modification counts in motif flanking sequence area, p value %s > %s\n"%(res, mod, p_val, p_ref)
-            content += "average modification in significant proteins: %s\n" \
-                       "average modification in insignificant proteins: %s\n\n"%(sig_mean, insig_mean)
-        f.write(content)
-        f.close()
-
-    @staticmethod
-    def load_data(f):
-        data = pd.read_csv(f, sep="\t", header=None)
-        data.columns = ["protein_id", "sample_count"]
-        return data
 
 if __name__ == "__main__":
     warnings.filterwarnings("ignore")
-    # c = Counting("/data1/hbs/modify_in_motif(sig=yes)", "/data1/hbs/modify_in_motif(signotyes)")
-    # c.main()
-    # b = Boostrap("C:/Users/hbs/Desktop/gly_in_motif_centralMut.txt", 0.95, 0.2, time=1000)
-    # data = b.load_data("C:/Users/hbs/Desktop/gly_in_motif_centralMut.txt")
-    # interval, q1, q3 = b.boostrap(data)
-    # print(interval)
-    # print(q1)
-    # print(q3)
-    s = Significant_difference_test()
-    s.compare_in_motif()
-    s.compare_out_motif()
-    s.compare_in_motif_central()
-    s.compare_in_motif_surround()
