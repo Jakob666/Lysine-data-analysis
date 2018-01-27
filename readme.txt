@@ -54,7 +54,11 @@ title：要通过Uniprot Accession与上一步生成的motif中的条目进行匹配；
 seq_len：序列的长度
 start、end：domain的起始位点和终止位点，这两个位点在最终的显著性差异检验的时候要将overlap的区域进行合并；
 
-    ④ 用classify_domain_by_modify.py将Total_interproscan.tsv文件中的domain按照不同的修饰分到不同的文件中
-，这些文件统一存放在total_fasta目录下。
+    ⑤ counting.py程序处理①中产生的文件统计各个修饰motif的样本数目，使用如下规则去除样本重复和motif重复
+       当同一个样本因为motif和序列不同归类在 sig=yes和sig≠yes中时
+            motif优先级 sig=yes -> sig≠ yes
+       当相同的样本因为选取的蛋白序列不同分到 central和surround 两类时，优先保留 central的
+            修饰位置优先级 central -> surround -> out
 
-    ⑤ ifInDomain.py程序将所有突变位点定位到 in_domain和 out_domain中
+
+    ⑥ ifInDomain.py程序将所有突变位点定位到 in_domain和 out_domain中

@@ -8,7 +8,7 @@ import warnings
 class Motif_bootstrap_test:
 
     def load_data(self, file):
-        data = pd.read_csv(file, sep="\t", usecols=[0, 1, 2, 3, 4, 7], encoding="utf-8")
+        data = pd.read_csv(file, sep="\t", usecols=[0, 1, 2, 3, 4, 5, 8], encoding="utf-8")
         data.set_index("Canonical", inplace=True)
         return data
 
@@ -26,8 +26,8 @@ class Motif_bootstrap_test:
         return i
 
     def calc_motif_start_end(self, i):
-        start = i["mutated position"] - i["left flank"]
-        end = i["mutated position"] + i["right flank"]
+        start = i["K position"] - i["left flank"]
+        end = i["K position"] + i["right flank"]
         if start < 0:
             start = 0
         if end > i["prot_length"]:

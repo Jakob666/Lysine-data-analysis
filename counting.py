@@ -33,8 +33,8 @@ class Counting:
 
     def load_data(self, f):
         '''用于将文件中的数据进行读取， motif数据中读取的数据'''
-        #读取到的列为protein_id（Uniprot详细到是否是isoform）、Canonical、cancer_type、left_flank、right_flank、mutated position、from、to、sample_num（此时只是sample号码，并没有计数）、direct mutation
-        data = pd.read_csv(f, sep="\t", usecols=[0, 1, 2, 5, 6, 7, 8, 9, 10, 11])
+        #读取到的列为protein_id（Uniprot详细到是否是isoform）、Canonical、cancer_type、K position, left_flank、right_flank、mutated position、from、to、sample_num（此时只是sample号码，并没有计数）、direct mutation
+        data = pd.read_csv(f, sep="\t", usecols=[0, 1, 2, 3, 5, 6, 7, 8, 9, 10, 11])
         data.drop_duplicates(inplace=True)  #去除完全相同的重复项
         data = data.applymap(str)
         return data
