@@ -62,7 +62,8 @@ class RankSumTest:
             print(file)
             print(data.head())
         # 拉直成一维数组并返回
-        return np.ravel(data.values)
+        data = data.values
+        return np.ravel(data.astype("float"))
 
 
     def rank_sum_test(self):
